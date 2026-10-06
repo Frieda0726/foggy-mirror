@@ -49,6 +49,8 @@ let recognitionBusy = false;
 let beautifyEnabled = true;
 let lastLiveRecognitionAt = 0;
 let penRepositioning = false;
+let lastLiveCandidate = '';
+let liveCandidateHits = 0;
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
 let mouthBaseline = 0;
@@ -200,9 +202,10 @@ async function getRecognitionWorker(): Promise<Worker> {
     recognitionWorkerPromise = (async () => {
       const worker = await createWorker('eng');
       await worker.setParameters({
-        tessedit_pageseg_mode: PSM.SINGLE_LINE,
+        tessedit_pageseg_mode: PSM.SINGLE_WORD,
         tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
         preserve_interword_spaces: '1',
+        user_defined_dpi: '300',
       });
       recognitionWorker = worker;
       return worker;
@@ -240,7 +243,9 @@ async function beautifyPendingWord(): Promise<void> {
     context.fillStyle = '#fff';
     context.fillRect(0, 0, sample.width, sample.height);
     context.strokeStyle = '#000';
-    context.lineWidth = Math.max(8, calibratedPalmWidth * 0.13) * 2 * scale;
+    // OCR works substantially better with normalized, pen-like strokes than
+    // with the deliberately thick cleared paths used by the fog renderer.
+    context.lineWidth = Math.max(4, Math.min(10, calibratedPalmWidth * 0.055)) * scale;
     context.lineCap = 'round';
     context.lineJoin = 'round';
     for (const line of strokes) {
@@ -256,7 +261,7 @@ async function beautifyPendingWord(): Promise<void> {
     const worker = await getRecognitionWorker();
     const result = await worker.recognize(sample);
     const text = result.data.text.replace(/[^A-Za-z0-9 ]/g, '').trim();
-    if (!text || result.data.confidence < 45) {
+    if (!text || result.data.confidence < 62) {
       showToast('没有看清 · 已保留原笔迹');
       setState(recognitionState, false, '未能确认文字 · 已保留原笔迹');
       return;
@@ -311,7 +316,7 @@ async function analyzeWritingLive(): Promise<void> {
     context.fillStyle = '#fff';
     context.fillRect(0, 0, sample.width, sample.height);
     context.strokeStyle = '#000';
-    context.lineWidth = Math.max(8, calibratedPalmWidth * 0.13) * 2 * scale;
+    context.lineWidth = Math.max(4, Math.min(10, calibratedPalmWidth * 0.055)) * scale;
     context.lineCap = 'round';
     context.lineJoin = 'round';
     for (const line of strokes) {
@@ -326,10 +331,17 @@ async function analyzeWritingLive(): Promise<void> {
     const worker = await getRecognitionWorker();
     const result = await worker.recognize(sample);
     const candidate = result.data.text.replace(/[^A-Za-z0-9 ]/g, '').trim();
+    if (candidate && candidate.toLowerCase() === lastLiveCandidate.toLowerCase()) {
+      liveCandidateHits += 1;
+    } else {
+      lastLiveCandidate = candidate;
+      liveCandidateHits = candidate ? 1 : 0;
+    }
+    const stableCandidate = candidate && result.data.confidence >= 42 && liveCandidateHits >= 2;
     setState(
       recognitionState,
-      Boolean(candidate && result.data.confidence >= 30),
-      candidate && result.data.confidence >= 30 ? `可能是 · ${candidate}` : '正在分析笔画…'
+      Boolean(stableCandidate),
+      stableCandidate ? `可能是 · ${candidate}` : '正在分析笔画…'
     );
   } catch (error) {
     console.error(error);
@@ -474,6 +486,8 @@ function updateHand(result: HandLandmarkerResult): void {
     lastFingerAt = 0;
     strokePausedAt = 0;
     penRepositioning = false;
+    lastLiveCandidate = '';
+    liveCandidateHits = 0;
   }
 }
 
