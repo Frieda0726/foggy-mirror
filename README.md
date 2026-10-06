@@ -4,8 +4,8 @@
 
 ## 功能
 
-- MediaPipe Hand Landmarker 直接追踪食指指尖，并用短暂时间缓冲避免抬手瞬间留下划痕
-- MediaPipe Face Landmarker `mouthPucker` 表情分数识别哈气嘴形
+- MediaPipe Hand Landmarker 直接追踪食指指尖；停顿或快速换位会智能抬笔，避免字母之间被连线
+- MediaPipe Face Landmarker 先校准闭嘴基线，再通过明显、持续的张嘴动作识别哈气，减少误触发
 - Canvas 实时雾化、局部擦除与局部重新起雾
 - WebGL2 摄像头纹理与动态磨砂冷凝噪声
 - 擦除边缘辉光以及随时间自然恢复的雾气
