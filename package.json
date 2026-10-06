@@ -1,0 +1,27 @@
+{
+  "name": "foggy-mirror",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An on-device foggy mirror that supports fingertip writing and a visual breath gesture.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "author": "Frieda0726",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Frieda0726/foggy-mirror.git"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.32"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vite-plugin-static-copy": "^3.2.0"
+  }
+}
