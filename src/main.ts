@@ -32,8 +32,10 @@ let lastBreathAt = 0;
 let mouthBaseline = 0.065;
 let toastTimer = 0;
 let lastRecoveryAt = 0;
+const breathClouds: BreathCloud[] = [];
 
 type Point = { x: number; y: number };
+type BreathCloud = { origin: Point; radius: number; startedAt: number; emitted: number; seed: number };
 
 function required<T extends HTMLElement>(id: string): T {
   const node = document.getElementById(id);
@@ -85,18 +87,45 @@ function stroke(from: Point | null, to: Point, radius = 18): void {
   maskCtx.restore();
 }
 
-function clearFogWithBreath(point: Point, radius: number): void {
+function clearFogWithBreath(point: Point, radius: number, strength = 0.26): void {
   maskCtx.save();
   const gradient = maskCtx.createRadialGradient(point.x, point.y, radius * 0.12, point.x, point.y, radius);
-  gradient.addColorStop(0, 'rgba(255,255,255,.98)');
-  gradient.addColorStop(0.5, 'rgba(255,255,255,.82)');
-  gradient.addColorStop(0.78, 'rgba(255,255,255,.34)');
+  gradient.addColorStop(0, `rgba(255,255,255,${strength})`);
+  gradient.addColorStop(0.46, `rgba(255,255,255,${strength * 0.7})`);
+  gradient.addColorStop(0.78, `rgba(255,255,255,${strength * 0.22})`);
   gradient.addColorStop(1, 'rgba(255,255,255,0)');
   maskCtx.fillStyle = gradient;
   maskCtx.beginPath();
   maskCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   maskCtx.fill();
   maskCtx.restore();
+}
+
+function seededRandom(seed: number): number {
+  return Math.abs(Math.sin(seed * 91.733 + 17.17) * 43758.5453) % 1;
+}
+
+function updateBreathClouds(now: number): void {
+  for (let cloudIndex = breathClouds.length - 1; cloudIndex >= 0; cloudIndex--) {
+    const cloud = breathClouds[cloudIndex]!;
+    const progress = Math.min(1, (now - cloud.startedAt) / 900);
+    const targetCount = Math.floor(progress * 42);
+    while (cloud.emitted < targetCount) {
+      const index = cloud.emitted++;
+      const angle = seededRandom(cloud.seed + index * 3.1) * Math.PI * 2;
+      const spread = Math.sqrt(seededRandom(cloud.seed + index * 5.7));
+      const horizontal = Math.cos(angle) * cloud.radius * spread * 0.92;
+      const vertical = Math.sin(angle) * cloud.radius * spread * 0.52 - cloud.radius * progress * 0.12;
+      const puffRadius = cloud.radius * (0.14 + seededRandom(cloud.seed + index * 7.9) * 0.22);
+      const strength = 0.16 + seededRandom(cloud.seed + index * 11.3) * 0.16;
+      clearFogWithBreath(
+        { x: cloud.origin.x + horizontal, y: cloud.origin.y + vertical },
+        puffRadius,
+        strength
+      );
+    }
+    if (progress >= 1) breathClouds.splice(cloudIndex, 1);
+  }
 }
 
 function render(now = performance.now()): void {
@@ -209,15 +238,13 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
     const faceWidth = distance(face[234]!, face[454]!) * innerWidth;
     const breathRadius = Math.max(80, Math.min(175, faceWidth * 0.46));
-    clearFogWithBreath(mouth, breathRadius);
-    clearFogWithBreath(
-      { x: mouth.x - breathRadius * 0.34, y: mouth.y - breathRadius * 0.08 },
-      breathRadius * 0.58
-    );
-    clearFogWithBreath(
-      { x: mouth.x + breathRadius * 0.34, y: mouth.y + breathRadius * 0.08 },
-      breathRadius * 0.58
-    );
+    breathClouds.push({
+      origin: mouth,
+      radius: breathRadius * 1.2,
+      startedAt: now,
+      emitted: 0,
+      seed: now * 0.013,
+    });
     breathPulse.style.left = `${mouth.x}px`;
     breathPulse.style.top = `${mouth.y}px`;
     breathPulse.classList.remove('play');
@@ -309,6 +336,7 @@ function loop(now: number): void {
     updateFace(faceLandmarker.detectForVideo(video, now), now);
   }
   recoverCondensation(now);
+  updateBreathClouds(now);
   render(now);
   requestAnimationFrame(loop);
 }
