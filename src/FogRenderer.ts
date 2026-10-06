@@ -11,7 +11,6 @@ precision highp float;
 uniform sampler2D u_video;
 uniform sampler2D u_mask;
 uniform vec2 u_resolution;
-uniform float u_time;
 in vec2 v_uv;
 out vec4 outColor;
 
@@ -78,20 +77,11 @@ void main() {
   float cleared = softMask(uv);
   float fog = 1.0 - cleared;
 
-  float n1 = fbm(uv * vec2(4.2, 3.1) + vec2(u_time * 0.012, -u_time * 0.008));
-  float n2 = fbm(uv * 13.0 - vec2(u_time * 0.006));
-  vec2 distortion = vec2(
-    fbm(uv * 8.0 + vec2(0.0, u_time * 0.01)) - 0.5,
-    fbm(uv * 8.0 + vec2(8.4, -u_time * 0.008)) - 0.5
-  );
-
-  vec2 refractedUv = uv + distortion * 0.003 * fog;
+  vec2 refractedUv = uv;
   vec3 clearVideo = sampleVideo(refractedUv).rgb;
-  vec3 blurredVideo = softVideo(refractedUv, 8.0 + fog * 14.0);
-
-  vec3 coolFog = mix(vec3(0.72, 0.79, 0.80), vec3(0.91, 0.94, 0.94), n1);
-  coolFog += (n2 - 0.5) * 0.028;
-  vec3 fogged = mix(blurredVideo, coolFog, 0.72 + n1 * 0.12);
+  vec3 blurredVideo = softVideo(refractedUv, 26.0);
+  vec3 milkGlass = vec3(0.93, 0.945, 0.945);
+  vec3 fogged = mix(blurredVideo, milkGlass, 0.66);
 
   vec2 px = 2.0 / u_resolution;
   float nearMask = max(max(texture(u_mask, uv + vec2(px.x, 0)).r, texture(u_mask, uv - vec2(px.x, 0)).r),
@@ -100,10 +90,10 @@ void main() {
 
   float reveal = pow(smoothstep(0.0, 0.72, cleared), 0.72);
   vec3 color = mix(fogged, clearVideo, reveal);
-  color += vec3(0.72, 0.92, 0.94) * edge * 0.14;
+  color += vec3(0.94, 0.98, 0.98) * edge * 0.08;
 
   float vignette = smoothstep(0.92, 0.28, distance(uv, vec2(0.5)));
-  color *= mix(0.84, 1.0, vignette);
+  color *= mix(0.93, 1.0, vignette);
   outColor = vec4(color, 1.0);
 }`;
 
@@ -113,7 +103,6 @@ export class FogRenderer {
   private readonly videoTexture: WebGLTexture;
   private readonly maskTexture: WebGLTexture;
   private readonly resolutionLocation: WebGLUniformLocation;
-  private readonly timeLocation: WebGLUniformLocation;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -124,7 +113,6 @@ export class FogRenderer {
     this.gl = gl;
     this.program = this.createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
     this.resolutionLocation = this.uniform('u_resolution');
-    this.timeLocation = this.uniform('u_time');
 
     const buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -160,7 +148,6 @@ export class FogRenderer {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, mask);
     gl.uniform2f(this.resolutionLocation, this.canvas.width, this.canvas.height);
-    gl.uniform1f(this.timeLocation, timeMs / 1000);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
