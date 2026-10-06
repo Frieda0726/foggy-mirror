@@ -262,17 +262,26 @@ function updateHand(result: HandLandmarkerResult): void {
     const elapsed = lastFingerAt ? Math.max(1, now - lastFingerAt) : 16;
     const travel = lastFinger ? Math.hypot(smoothFinger.x - lastFinger.x, smoothFinger.y - lastFinger.y) : 0;
     const speed = travel / elapsed;
-    const isRepositioning = travel > Math.max(30, calibratedPalmWidth * 0.21) || speed > Math.max(1.05, calibratedMoveSpeed * 3.8);
-    const isPaused = lastFinger && speed < Math.max(0.035, calibratedMoveSpeed * 0.16);
+    // Preserve continuous strokes even when the fingertip moves quickly. A jump is
+    // only treated as repositioning when tracking has clearly skipped a large gap.
+    const isRepositioning = travel > Math.max(90, calibratedPalmWidth * 0.6) || speed > Math.max(3.2, calibratedMoveSpeed * 8);
+    const isPaused = lastFinger && speed < 0.025;
 
     if (isPaused) {
       if (!strokePausedAt) strokePausedAt = now;
-      if (now - strokePausedAt > 150) {
+      if (now - strokePausedAt > 230) {
         lastFinger = null;
         finishStroke();
       }
     } else {
-      if (isRepositioning || (strokePausedAt && now - strokePausedAt > 110)) {
+      if (isRepositioning) {
+        lastFinger = null;
+        finishStroke();
+        strokePausedAt = 0;
+        lastFingerAt = now;
+        return;
+      }
+      if (strokePausedAt && now - strokePausedAt > 180) {
         lastFinger = null;
         finishStroke();
       }
