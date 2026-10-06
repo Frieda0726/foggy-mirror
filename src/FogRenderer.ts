@@ -59,9 +59,23 @@ vec3 softVideo(vec2 uv, float radius) {
   return color;
 }
 
+float softMask(vec2 uv) {
+  vec2 px = 18.0 / u_resolution;
+  float value = texture(u_mask, uv).r * 0.24;
+  value += texture(u_mask, uv + vec2(px.x, 0)).r * 0.11;
+  value += texture(u_mask, uv - vec2(px.x, 0)).r * 0.11;
+  value += texture(u_mask, uv + vec2(0, px.y)).r * 0.11;
+  value += texture(u_mask, uv - vec2(0, px.y)).r * 0.11;
+  value += texture(u_mask, uv + px).r * 0.08;
+  value += texture(u_mask, uv - px).r * 0.08;
+  value += texture(u_mask, uv + vec2(px.x, -px.y)).r * 0.08;
+  value += texture(u_mask, uv + vec2(-px.x, px.y)).r * 0.08;
+  return value;
+}
+
 void main() {
   vec2 uv = v_uv;
-  float cleared = texture(u_mask, uv).r;
+  float cleared = softMask(uv);
   float fog = 1.0 - cleared;
 
   float n1 = fbm(uv * vec2(4.2, 3.1) + vec2(u_time * 0.012, -u_time * 0.008));
@@ -84,7 +98,8 @@ void main() {
                        max(texture(u_mask, uv + vec2(0, px.y)).r, texture(u_mask, uv - vec2(0, px.y)).r));
   float edge = clamp(nearMask - cleared, 0.0, 1.0);
 
-  vec3 color = mix(fogged, clearVideo, smoothstep(0.02, 0.82, cleared));
+  float reveal = pow(smoothstep(0.0, 0.72, cleared), 0.72);
+  vec3 color = mix(fogged, clearVideo, reveal);
   color += vec3(0.72, 0.92, 0.94) * edge * 0.14;
 
   float vignette = smoothstep(0.92, 0.28, distance(uv, vec2(0.5)));
