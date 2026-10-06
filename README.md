@@ -7,7 +7,7 @@
 - MediaPipe Hand Landmarker 识别食指指尖和书写姿势
 - MediaPipe Face Landmarker `mouthPucker` 表情分数识别哈气嘴形
 - Canvas 实时雾化、局部擦除与局部重新起雾
-- WebGL2 摄像头纹理、动态冷凝噪声、水滴折射与高光
+- WebGL2 摄像头纹理与动态磨砂冷凝噪声
 - 擦除边缘辉光以及随时间自然恢复的雾气
 - 鼠标或触控书写回退
 - 摄像头画面和识别均留在本机，不上传、不保存
