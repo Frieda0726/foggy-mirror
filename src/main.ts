@@ -24,8 +24,12 @@ let running = false;
 let lastVideoTime = -1;
 let lastFinger: Point | null = null;
 let smoothFinger: Point | null = null;
+let fingerAnchor: Point | null = null;
+let fingerHoldStartedAt = 0;
+let fingerArmed = false;
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
+let mouthBaseline = 0.065;
 let toastTimer = 0;
 let lastRecoveryAt = 0;
 
@@ -110,9 +114,12 @@ function recoverCondensation(now: number): void {
 }
 
 function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
-  const palmWidth = Math.max(0.001, distance(landmarks[5]!, landmarks[17]!));
-  const pinchDistance = distance(landmarks[4]!, landmarks[8]!);
-  return pinchDistance / palmWidth < 0.42;
+  const indexTip = landmarks[8]!;
+  const indexPip = landmarks[6]!;
+  const otherTips = [landmarks[12]!, landmarks[16]!, landmarks[20]!];
+  const indexExtended = indexTip.y < indexPip.y - 0.01;
+  const indexIsLeading = otherTips.filter((tip) => indexTip.y + 0.012 < tip.y).length >= 2;
+  return indexExtended && indexIsLeading;
 }
 
 function updateHand(result: HandLandmarkerResult): void {
@@ -120,6 +127,9 @@ function updateHand(result: HandLandmarkerResult): void {
   if (!landmarks) {
     lastFinger = null;
     smoothFinger = null;
+    fingerAnchor = null;
+    fingerHoldStartedAt = 0;
+    fingerArmed = false;
     cursor.style.opacity = '0';
     setState(handState, false, '未检测到手 · 伸出食指');
     return;
@@ -129,11 +139,28 @@ function updateHand(result: HandLandmarkerResult): void {
   smoothFinger = smoothFinger
     ? { x: smoothFinger.x * 0.55 + raw.x * 0.45, y: smoothFinger.y * 0.55 + raw.y * 0.45 }
     : raw;
-  const writing = isFingerWriting(landmarks);
+  const pointing = isFingerWriting(landmarks);
+  const now = performance.now();
+  if (pointing && !fingerArmed) {
+    if (!fingerAnchor || distance2D(fingerAnchor, smoothFinger) > 18) {
+      fingerAnchor = { ...smoothFinger };
+      fingerHoldStartedAt = now;
+    } else if (now - fingerHoldStartedAt > 400) {
+      fingerArmed = true;
+      lastFinger = null;
+      showToast('已落笔 · 移动食指书写');
+    }
+  } else if (!pointing) {
+    fingerAnchor = null;
+    fingerHoldStartedAt = 0;
+    fingerArmed = false;
+  }
+  const writing = pointing && fingerArmed;
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  setState(handState, true, writing ? '已落笔 · 移动捏合的指尖' : '光标模式 · 捏合拇指与食指落笔');
+  const readyProgress = fingerHoldStartedAt ? Math.min(100, Math.round(((now - fingerHoldStartedAt) / 400) * 100)) : 0;
+  setState(handState, true, writing ? '已落笔 · 移动食指书写' : pointing ? `保持指尖稳定 · ${readyProgress}%` : '光标模式 · 伸出食指');
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
@@ -157,11 +184,14 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   const mouthWidth = Math.max(0.001, distance(face[61]!, face[291]!));
   const mouthOpening = distance(face[13]!, face[14]!);
   const mouthAspect = mouthOpening / mouthWidth;
-  const geometryScore = Math.max(0, Math.min(1, (mouthAspect - 0.055) / 0.24));
-  const breathScore = Math.max(pucker * 0.9, funnel, geometryScore);
-  const mouthIsOpen = mouthAspect > 0.115;
-  const active = mouthIsOpen || breathScore > 0.28;
-  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 360) * 100)) : 0;
+  if (!puckerStartedAt && mouthAspect < mouthBaseline * 1.22) {
+    mouthBaseline = mouthBaseline * 0.97 + mouthAspect * 0.03;
+  }
+  const openThreshold = Math.max(0.082, mouthBaseline * 1.28);
+  const geometryScore = Math.max(0, Math.min(1, (mouthAspect - mouthBaseline) / Math.max(0.06, mouthBaseline * 1.4)));
+  const breathScore = Math.max(pucker, funnel * 1.1, geometryScore);
+  const active = mouthAspect > openThreshold || pucker > 0.22 || funnel > 0.16;
+  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 220) * 100)) : 0;
   const confidence = Math.round(breathScore * 100);
   setState(
     faceState,
@@ -173,7 +203,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     return;
   }
   if (!puckerStartedAt) puckerStartedAt = now;
-  if (now - puckerStartedAt > 360 && now - lastBreathAt > 1300) {
+  if (now - puckerStartedAt > 220 && now - lastBreathAt > 1200) {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
@@ -194,6 +224,10 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
 }
 
 function distance(a: NormalizedLandmark, b: NormalizedLandmark): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function distance2D(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
