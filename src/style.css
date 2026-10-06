@@ -33,6 +33,11 @@ button.secondary { color: #eff; background: #0d191ba8; backdrop-filter: blur(12p
 .breath-pulse { position: absolute; z-index: 6; width: 48px; height: 48px; margin: -24px; border-radius: 50%; opacity: 0; pointer-events: none; background: radial-gradient(circle, #f5ffffe6 0%, #d7e6e5a8 34%, #c2d5d24d 62%, transparent 74%); filter: blur(4px); box-shadow: 0 0 34px 18px #e7f3f29c; }
 .breath-pulse.play { animation: breathe 1.1s ease-out; }
 @keyframes breathe { 0% { opacity: .95; transform: scale(.45) translateY(0); } 55% { opacity: .68; } 100% { opacity: 0; transform: scale(8) translateY(-10px); } }
+.write-calibration { position: absolute; z-index: 8; left: 50%; top: 50%; display: flex; align-items: center; gap: 12px; transform: translate(-50%, -50%); padding: 12px 17px 12px 12px; border: 1px solid #eaffff38; border-radius: 999px; color: #efffff; background: #0c1719c7; box-shadow: 0 18px 50px #0006; backdrop-filter: blur(18px); font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; }
+.write-calibration.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.write-calibration.done { opacity: 0; transform: translate(-50%, -50%) scale(.92); }
+.calibration-ring { display: grid; place-items: center; width: 35px; height: 35px; border: 1px solid #a6ebe2aa; border-radius: 50%; color: #a6ebe2; font-size: 20px; animation: calibrate 1.25s ease-in-out infinite; }
+@keyframes calibrate { 50% { transform: scale(1.12); box-shadow: 0 0 22px #8de8dc66; } }
 .permission-card { position: absolute; z-index: 12; top: 50%; left: 50%; width: min(410px, calc(100% - 36px)); transform: translate(-50%, -50%); padding: 36px; text-align: center; border: 1px solid #f3ffff33; border-radius: 26px; background: #132124e8; box-shadow: 0 28px 80px #0008; backdrop-filter: blur(28px); }
 .permission-card.hidden { display: none; }
 .permission-card .lens { margin: 0 auto 20px; display: grid; place-items: center; width: 58px; height: 58px; color: #89d9d4; border: 1px solid #aee7e455; border-radius: 50%; font-size: 25px; }
