@@ -110,12 +110,9 @@ function recoverCondensation(now: number): void {
 }
 
 function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
-  const indexTip = landmarks[8]!;
-  const indexPip = landmarks[6]!;
-  const otherTips = [landmarks[12]!, landmarks[16]!, landmarks[20]!];
-  const indexExtended = indexTip.y < indexPip.y - 0.012;
-  const indexIsLeading = otherTips.filter((tip) => indexTip.y + 0.018 < tip.y).length >= 2;
-  return indexExtended && indexIsLeading;
+  const palmWidth = Math.max(0.001, distance(landmarks[5]!, landmarks[17]!));
+  const pinchDistance = distance(landmarks[4]!, landmarks[8]!);
+  return pinchDistance / palmWidth < 0.42;
 }
 
 function updateHand(result: HandLandmarkerResult): void {
@@ -136,7 +133,7 @@ function updateHand(result: HandLandmarkerResult): void {
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  setState(handState, true, writing ? '正在书写 · 移动食指' : '已检测手部 · 让食指高于其他手指');
+  setState(handState, true, writing ? '已落笔 · 移动捏合的指尖' : '光标模式 · 捏合拇指与食指落笔');
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
@@ -161,21 +158,22 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   const mouthOpening = distance(face[13]!, face[14]!);
   const mouthAspect = mouthOpening / mouthWidth;
   const geometryScore = Math.max(0, Math.min(1, (mouthAspect - 0.055) / 0.24));
-  const breathScore = Math.max(pucker, funnel * 1.15, geometryScore);
-  const active = breathScore > 0.32;
-  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 420) * 100)) : 0;
+  const breathScore = Math.max(pucker * 0.9, funnel, geometryScore);
+  const mouthIsOpen = mouthAspect > 0.115;
+  const active = mouthIsOpen || breathScore > 0.28;
+  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 360) * 100)) : 0;
   const confidence = Math.round(breathScore * 100);
   setState(
     faceState,
     true,
-    active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 噘嘴微张`
+    active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 张嘴哈气`
   );
   if (!active) {
     puckerStartedAt = 0;
     return;
   }
   if (!puckerStartedAt) puckerStartedAt = now;
-  if (now - puckerStartedAt > 420 && now - lastBreathAt > 1300) {
+  if (now - puckerStartedAt > 360 && now - lastBreathAt > 1300) {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
