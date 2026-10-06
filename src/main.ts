@@ -185,21 +185,31 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   const face = result.faceLandmarks[0];
   const scores = result.faceBlendshapes[0]?.categories;
   const pucker = scores?.find((item) => item.categoryName === 'mouthPucker')?.score ?? 0;
-  const jawOpen = scores?.find((item) => item.categoryName === 'jawOpen')?.score ?? 0;
+  const funnel = scores?.find((item) => item.categoryName === 'mouthFunnel')?.score ?? 0;
   if (!face) {
     puckerStartedAt = 0;
     setState(faceState, false, '未检测到面部 · 正对镜头');
     return;
   }
-  const active = pucker > 0.56 && jawOpen > 0.06;
-  const progress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 750) * 100)) : 0;
-  setState(faceState, true, active ? `保持哈气嘴形 · ${progress}%` : '已检测面部 · 噘嘴并微微张口');
+  const mouthWidth = Math.max(0.001, distance(face[61]!, face[291]!));
+  const mouthOpening = distance(face[13]!, face[14]!);
+  const mouthAspect = mouthOpening / mouthWidth;
+  const geometryScore = Math.max(0, Math.min(1, (mouthAspect - 0.055) / 0.24));
+  const breathScore = Math.max(pucker, funnel * 1.15, geometryScore);
+  const active = breathScore > 0.32;
+  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 420) * 100)) : 0;
+  const confidence = Math.round(breathScore * 100);
+  setState(
+    faceState,
+    true,
+    active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 噘嘴微张`
+  );
   if (!active) {
     puckerStartedAt = 0;
     return;
   }
   if (!puckerStartedAt) puckerStartedAt = now;
-  if (now - puckerStartedAt > 750 && now - lastBreathAt > 1800) {
+  if (now - puckerStartedAt > 420 && now - lastBreathAt > 1300) {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
