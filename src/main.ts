@@ -116,10 +116,10 @@ function updateBreathClouds(now: number): void {
       const index = cloud.emitted++;
       const angle = seededRandom(cloud.seed + index * 3.1) * Math.PI * 2;
       const spread = Math.sqrt(seededRandom(cloud.seed + index * 5.7));
-      const horizontal = Math.cos(angle) * cloud.radius * spread * 0.92;
-      const vertical = Math.sin(angle) * cloud.radius * spread * 0.52 - cloud.radius * progress * 0.12;
-      const puffRadius = cloud.radius * (0.14 + seededRandom(cloud.seed + index * 7.9) * 0.22);
-      const strength = 0.16 + seededRandom(cloud.seed + index * 11.3) * 0.16;
+      const horizontal = Math.cos(angle) * cloud.radius * spread * 0.68;
+      const vertical = Math.sin(angle) * cloud.radius * spread * 0.4 - cloud.radius * progress * 0.08;
+      const puffRadius = cloud.radius * (0.1 + seededRandom(cloud.seed + index * 7.9) * 0.14);
+      const strength = 0.13 + seededRandom(cloud.seed + index * 11.3) * 0.13;
       clearFogWithBreath(
         { x: cloud.origin.x + horizontal, y: cloud.origin.y + vertical },
         puffRadius,
@@ -259,7 +259,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
       ? { x: (1 - face[1]!.x) * innerWidth, y: face[1]!.y * innerHeight }
       : mouth;
     const faceWidth = distance(face[234]!, face[454]!) * innerWidth;
-    const breathRadius = Math.max(170, Math.min(360, faceWidth * 1.08));
+    const breathRadius = Math.max(95, Math.min(210, faceWidth * 0.62));
     breathClouds.push({
       origin: { x: (mouth.x + faceCenter.x) / 2, y: (mouth.y + faceCenter.y) / 2 },
       radius: breathRadius,
