@@ -26,9 +26,12 @@ let lastFinger: Point | null = null;
 let smoothFinger: Point | null = null;
 let fingerHoldStartedAt = 0;
 let fingerArmed = false;
+let lastFingerAt = 0;
+let strokePausedAt = 0;
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
-let mouthBaseline = 0.065;
+let mouthBaseline = 0;
+let mouthCalibrationFrames = 0;
 let toastTimer = 0;
 let lastRecoveryAt = 0;
 const breathClouds: BreathCloud[] = [];
@@ -153,6 +156,8 @@ function updateHand(result: HandLandmarkerResult): void {
     smoothFinger = null;
     fingerHoldStartedAt = 0;
     fingerArmed = false;
+    lastFingerAt = 0;
+    strokePausedAt = 0;
     cursor.style.opacity = '0';
     setState(handState, false, '未检测到手 · 伸出食指');
     return;
@@ -185,10 +190,26 @@ function updateHand(result: HandLandmarkerResult): void {
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
-    stroke(lastFinger, smoothFinger, Math.max(14, Math.min(22, palmWidth * 0.13)));
-    lastFinger = smoothFinger;
+    const elapsed = lastFingerAt ? Math.max(1, now - lastFingerAt) : 16;
+    const travel = lastFinger ? Math.hypot(smoothFinger.x - lastFinger.x, smoothFinger.y - lastFinger.y) : 0;
+    const speed = travel / elapsed;
+    const isRepositioning = travel > Math.max(34, palmWidth * 0.23) || speed > 1.45;
+    const isPaused = lastFinger && speed < 0.045;
+
+    if (isPaused) {
+      if (!strokePausedAt) strokePausedAt = now;
+      if (now - strokePausedAt > 150) lastFinger = null;
+    } else {
+      if (isRepositioning || (strokePausedAt && now - strokePausedAt > 110)) lastFinger = null;
+      strokePausedAt = 0;
+      stroke(lastFinger, smoothFinger, Math.max(14, Math.min(22, palmWidth * 0.13)));
+      lastFinger = smoothFinger;
+    }
+    lastFingerAt = now;
   } else {
     lastFinger = null;
+    lastFingerAt = 0;
+    strokePausedAt = 0;
   }
 }
 
@@ -199,32 +220,38 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   const funnel = scores?.find((item) => item.categoryName === 'mouthFunnel')?.score ?? 0;
   if (!face) {
     puckerStartedAt = 0;
+    mouthCalibrationFrames = 0;
     setState(faceState, false, '未检测到面部 · 正对镜头');
     return;
   }
   const mouthWidth = Math.max(0.001, distance(face[61]!, face[291]!));
   const mouthOpening = distance(face[13]!, face[14]!);
   const mouthAspect = mouthOpening / mouthWidth;
-  if (!puckerStartedAt && mouthAspect < mouthBaseline * 1.22) {
-    mouthBaseline = mouthBaseline * 0.97 + mouthAspect * 0.03;
+  if (!mouthBaseline) mouthBaseline = mouthAspect;
+  const looksClosed = mouthAspect < Math.max(0.105, mouthBaseline * 1.35);
+  if (!puckerStartedAt && looksClosed) {
+    mouthBaseline = mouthBaseline * 0.94 + mouthAspect * 0.06;
+    mouthCalibrationFrames = Math.min(90, mouthCalibrationFrames + 1);
   }
-  const openThreshold = Math.max(0.082, mouthBaseline * 1.28);
-  const geometryScore = Math.max(0, Math.min(1, (mouthAspect - mouthBaseline) / Math.max(0.06, mouthBaseline * 1.4)));
+  const calibrated = mouthCalibrationFrames >= 24;
+  const openThreshold = Math.max(0.135, mouthBaseline * 1.72, mouthBaseline + 0.065);
+  const geometryScore = Math.max(0, Math.min(1, (mouthAspect - openThreshold) / 0.12));
   const breathScore = Math.max(pucker, funnel * 1.1, geometryScore);
-  const active = mouthAspect > openThreshold || pucker > 0.22 || funnel > 0.16;
-  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 220) * 100)) : 0;
+  const shapeSupportsBreath = pucker > 0.18 || funnel > 0.14 || mouthAspect > openThreshold + 0.035;
+  const active = calibrated && mouthAspect > openThreshold && shapeSupportsBreath;
+  const holdProgress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 480) * 100)) : 0;
   const confidence = Math.round(breathScore * 100);
   setState(
     faceState,
     true,
-    active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 张嘴哈气`
+    !calibrated ? `正在校准嘴形 · ${Math.round((mouthCalibrationFrames / 24) * 100)}%` : active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 张嘴哈气`
   );
   if (!active) {
     puckerStartedAt = 0;
     return;
   }
   if (!puckerStartedAt) puckerStartedAt = now;
-  if (now - puckerStartedAt > 220 && now - lastBreathAt > 1200) {
+  if (now - puckerStartedAt > 480 && now - lastBreathAt > 1400) {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
