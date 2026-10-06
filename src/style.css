@@ -28,6 +28,8 @@ h1 { margin: 0; font: 300 clamp(28px, 5vw, 54px)/1 Georgia, serif; letter-spacin
 button { appearance: none; border: 1px solid #dfffff40; border-radius: 999px; padding: 12px 19px; color: #102124; background: #d9eeee; font: 650 12px/1 inherit; letter-spacing: .04em; cursor: pointer; transition: transform .2s, background .2s; }
 button:hover { transform: translateY(-2px); background: #fff; }
 button.secondary { color: #eff; background: #0d191ba8; backdrop-filter: blur(12px); }
+button.smart { color: #eff; background: #153033c9; backdrop-filter: blur(12px); }
+button.smart.active { border-color: #8fe6da99; box-shadow: inset 0 0 0 1px #8fe6da22, 0 0 22px #75dccc18; }
 .cursor { position: absolute; z-index: 7; width: 24px; height: 24px; margin: -12px; border: 1.5px solid #fff; border-radius: 50%; opacity: 0; pointer-events: none; box-shadow: 0 0 0 5px #dfffff20, 0 0 20px #fff; transition: opacity .15s, width .15s, height .15s, margin .15s; }
 .cursor.drawing { width: 12px; height: 12px; margin: -6px; background: #fff; box-shadow: 0 0 0 4px #dfffff20, 0 0 15px #fff; }
 .breath-pulse { position: absolute; z-index: 6; width: 48px; height: 48px; margin: -24px; border-radius: 50%; opacity: 0; pointer-events: none; background: radial-gradient(circle, #f5ffffe6 0%, #d7e6e5a8 34%, #c2d5d24d 62%, transparent 74%); filter: blur(4px); box-shadow: 0 0 34px 18px #e7f3f29c; }
