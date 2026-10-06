@@ -1,6 +1,7 @@
 import { FaceLandmarker, FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, HandLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
 import { FogRenderer } from './FogRenderer';
+import { createWorker, PSM, type Worker } from 'tesseract.js';
 import './style.css';
 
 const video = required<HTMLVideoElement>('camera');
@@ -11,6 +12,7 @@ const renderer = new FogRenderer(canvas, video);
 const startButton = required<HTMLButtonElement>('startButton');
 const resetButton = required<HTMLButtonElement>('resetButton');
 const clearButton = required<HTMLButtonElement>('clearButton');
+const beautifyButton = required<HTMLButtonElement>('beautifyButton');
 const permission = required<HTMLElement>('permission');
 const cursor = required<HTMLElement>('cursor');
 const breathPulse = required<HTMLElement>('breathPulse');
@@ -38,6 +40,11 @@ const speedSamples: number[] = [];
 let calibrationPoint: Point | null = null;
 let calibrationPointAt = 0;
 let currentStroke: Point[] = [];
+let pendingWordStrokes: Point[][] = [];
+let recognitionTimer = 0;
+let recognitionWorker: Worker | null = null;
+let recognitionBusy = false;
+let beautifyEnabled = true;
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
 let mouthBaseline = 0;
@@ -166,10 +173,102 @@ function median(values: number[]): number {
 }
 
 function finishStroke(): void {
+  if (currentStroke.length < 2) {
+    currentStroke = [];
+    return;
+  }
   if (currentStroke.length >= 18 && looksLikeHeart(currentStroke)) {
     showToast('♡ 识别到爱心');
+    pendingWordStrokes = [];
+    window.clearTimeout(recognitionTimer);
+  } else if (beautifyEnabled) {
+    pendingWordStrokes.push(currentStroke.map((point) => ({ ...point })));
+    window.clearTimeout(recognitionTimer);
+    recognitionTimer = window.setTimeout(() => void beautifyPendingWord(), 1050);
   }
   currentStroke = [];
+}
+
+async function getRecognitionWorker(): Promise<Worker> {
+  if (recognitionWorker) return recognitionWorker;
+  showToast('正在加载本地手写识别模型…');
+  recognitionWorker = await createWorker('eng');
+  await recognitionWorker.setParameters({
+    tessedit_pageseg_mode: PSM.SINGLE_LINE,
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
+    preserve_interword_spaces: '1',
+  });
+  return recognitionWorker;
+}
+
+async function beautifyPendingWord(): Promise<void> {
+  if (!beautifyEnabled || recognitionBusy || !pendingWordStrokes.length) return;
+  const strokes = pendingWordStrokes;
+  pendingWordStrokes = [];
+  const points = strokes.flat();
+  const left = Math.min(...points.map((point) => point.x));
+  const right = Math.max(...points.map((point) => point.x));
+  const top = Math.min(...points.map((point) => point.y));
+  const bottom = Math.max(...points.map((point) => point.y));
+  const width = right - left;
+  const height = bottom - top;
+  if (width < 18 || height < 18) return;
+
+  recognitionBusy = true;
+  beautifyButton.textContent = '正在识别…';
+  try {
+    const padding = Math.max(24, height * 0.35);
+    const scale = Math.min(3, 480 / Math.max(width + padding * 2, height + padding * 2));
+    const sample = document.createElement('canvas');
+    sample.width = Math.ceil((width + padding * 2) * scale);
+    sample.height = Math.ceil((height + padding * 2) * scale);
+    const context = sample.getContext('2d')!;
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, sample.width, sample.height);
+    context.strokeStyle = '#000';
+    context.lineWidth = Math.max(8, calibratedPalmWidth * 0.13) * 2 * scale;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    for (const line of strokes) {
+      context.beginPath();
+      line.forEach((point, index) => {
+        const x = (point.x - left + padding) * scale;
+        const y = (point.y - top + padding) * scale;
+        if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
+      });
+      context.stroke();
+    }
+
+    const worker = await getRecognitionWorker();
+    const result = await worker.recognize(sample);
+    const text = result.data.text.replace(/[^A-Za-z0-9 ]/g, '').trim();
+    if (!text || result.data.confidence < 45) {
+      showToast('没有看清 · 已保留原笔迹');
+      return;
+    }
+
+    const areaPadding = Math.max(18, height * 0.22);
+    maskCtx.save();
+    maskCtx.globalCompositeOperation = 'destination-out';
+    maskCtx.fillStyle = '#000';
+    maskCtx.fillRect(left - areaPadding, top - areaPadding, width + areaPadding * 2, height + areaPadding * 2);
+    maskCtx.restore();
+    maskCtx.save();
+    maskCtx.fillStyle = '#fff';
+    maskCtx.textAlign = 'center';
+    maskCtx.textBaseline = 'middle';
+    const fontSize = Math.max(42, Math.min(150, height * 1.18));
+    maskCtx.font = `500 ${fontSize}px "Bradley Hand", "Segoe Print", "KaiTi", cursive`;
+    maskCtx.fillText(text, (left + right) / 2, (top + bottom) / 2, width + areaPadding);
+    maskCtx.restore();
+    showToast(`已识别「${text}」· 智能美字完成`);
+  } catch (error) {
+    console.error(error);
+    showToast('识别模型暂不可用 · 已保留原笔迹');
+  } finally {
+    recognitionBusy = false;
+    beautifyButton.textContent = beautifyEnabled ? '智能美字 · 开' : '智能美字 · 关';
+  }
 }
 
 function looksLikeHeart(points: Point[]): boolean {
@@ -453,6 +552,16 @@ window.addEventListener('resize', () => { resize(); resetFog(); });
 startButton.addEventListener('click', start);
 resetButton.addEventListener('click', resetFog);
 clearButton.addEventListener('click', clearAllFog);
+beautifyButton.addEventListener('click', () => {
+  beautifyEnabled = !beautifyEnabled;
+  beautifyButton.classList.toggle('active', beautifyEnabled);
+  beautifyButton.textContent = beautifyEnabled ? '智能美字 · 开' : '智能美字 · 关';
+  if (!beautifyEnabled) {
+    pendingWordStrokes = [];
+    window.clearTimeout(recognitionTimer);
+  }
+  showToast(beautifyEnabled ? '智能美字已开启' : '已切换为原始笔迹');
+});
 
 resize();
 render();
