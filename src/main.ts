@@ -14,6 +14,7 @@ const clearButton = required<HTMLButtonElement>('clearButton');
 const permission = required<HTMLElement>('permission');
 const cursor = required<HTMLElement>('cursor');
 const breathPulse = required<HTMLElement>('breathPulse');
+const writeCalibration = required<HTMLElement>('writeCalibration');
 const handState = required<HTMLElement>('handState');
 const faceState = required<HTMLElement>('faceState');
 const toast = required<HTMLElement>('toast');
@@ -28,6 +29,15 @@ let fingerHoldStartedAt = 0;
 let fingerArmed = false;
 let lastFingerAt = 0;
 let strokePausedAt = 0;
+let handCalibrationStartedAt = 0;
+let handCalibrated = false;
+let calibratedPalmWidth = 150;
+let calibratedMoveSpeed = 0.32;
+const palmSamples: number[] = [];
+const speedSamples: number[] = [];
+let calibrationPoint: Point | null = null;
+let calibrationPointAt = 0;
+let currentStroke: Point[] = [];
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
 let mouthBaseline = 0;
@@ -149,9 +159,47 @@ function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
   return Boolean(indexTip && Number.isFinite(indexTip.x) && Number.isFinite(indexTip.y));
 }
 
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)]!;
+}
+
+function finishStroke(): void {
+  if (currentStroke.length >= 18 && looksLikeHeart(currentStroke)) {
+    showToast('♡ 识别到爱心');
+  }
+  currentStroke = [];
+}
+
+function looksLikeHeart(points: Point[]): boolean {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  const width = right - left;
+  const height = bottom - top;
+  if (width < 70 || height < 70 || width / height < 0.62 || width / height > 1.55) return false;
+  const centerX = (left + right) / 2;
+  const closure = Math.hypot(points[0]!.x - points.at(-1)!.x, points[0]!.y - points.at(-1)!.y);
+  const bottomPoint = points.reduce((lowest, point) => point.y > lowest.y ? point : lowest);
+  const leftLobe = points.filter((point) => point.x < centerX - width * 0.12 && point.y < top + height * 0.48);
+  const rightLobe = points.filter((point) => point.x > centerX + width * 0.12 && point.y < top + height * 0.48);
+  const notch = points.filter((point) => Math.abs(point.x - centerX) < width * 0.18 && point.y < top + height * 0.48);
+  if (!leftLobe.length || !rightLobe.length || !notch.length) return false;
+  const lobeTop = (Math.min(...leftLobe.map((point) => point.y)) + Math.min(...rightLobe.map((point) => point.y))) / 2;
+  const notchDepth = Math.max(...notch.map((point) => point.y)) - lobeTop;
+  return closure < Math.max(width, height) * 0.38
+    && Math.abs(bottomPoint.x - centerX) < width * 0.24
+    && notchDepth > height * 0.07;
+}
+
 function updateHand(result: HandLandmarkerResult): void {
   const landmarks = result.landmarks[0];
   if (!landmarks) {
+    finishStroke();
     lastFinger = null;
     smoothFinger = null;
     fingerHoldStartedAt = 0;
@@ -169,6 +217,28 @@ function updateHand(result: HandLandmarkerResult): void {
     : raw;
   const pointing = isFingerWriting(landmarks);
   const now = performance.now();
+  const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
+  if (!handCalibrated) {
+    if (!handCalibrationStartedAt) {
+      handCalibrationStartedAt = now;
+      writeCalibration.classList.add('show');
+    }
+    palmSamples.push(palmWidth);
+    if (calibrationPointAt && calibrationPoint) {
+      const sampleTravel = Math.hypot(smoothFinger.x - calibrationPoint.x, smoothFinger.y - calibrationPoint.y);
+      const sampleElapsed = Math.max(1, now - calibrationPointAt);
+      if (sampleTravel > 1) speedSamples.push(sampleTravel / sampleElapsed);
+    }
+    calibrationPoint = { ...smoothFinger };
+    calibrationPointAt = now;
+    if (now - handCalibrationStartedAt >= 1200 && palmSamples.length >= 12) {
+      calibratedPalmWidth = median(palmSamples) || palmWidth;
+      calibratedMoveSpeed = median(speedSamples) || 0.32;
+      handCalibrated = true;
+      writeCalibration.classList.add('done');
+      showToast('书写已校准 · 可以写字或画爱心');
+    }
+  }
   if (pointing && !fingerArmed) {
     if (!fingerHoldStartedAt) {
       fingerHoldStartedAt = now;
@@ -181,7 +251,7 @@ function updateHand(result: HandLandmarkerResult): void {
     fingerHoldStartedAt = 0;
     fingerArmed = false;
   }
-  const writing = pointing && fingerArmed;
+  const writing = pointing && fingerArmed && handCalibrated;
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
@@ -189,24 +259,31 @@ function updateHand(result: HandLandmarkerResult): void {
   setState(handState, true, writing ? '正在书写 · 移动食指' : `识别食指 · ${readyProgress}%`);
   handState.classList.toggle('drawing', writing);
   if (writing) {
-    const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
     const elapsed = lastFingerAt ? Math.max(1, now - lastFingerAt) : 16;
     const travel = lastFinger ? Math.hypot(smoothFinger.x - lastFinger.x, smoothFinger.y - lastFinger.y) : 0;
     const speed = travel / elapsed;
-    const isRepositioning = travel > Math.max(34, palmWidth * 0.23) || speed > 1.45;
-    const isPaused = lastFinger && speed < 0.045;
+    const isRepositioning = travel > Math.max(30, calibratedPalmWidth * 0.21) || speed > Math.max(1.05, calibratedMoveSpeed * 3.8);
+    const isPaused = lastFinger && speed < Math.max(0.035, calibratedMoveSpeed * 0.16);
 
     if (isPaused) {
       if (!strokePausedAt) strokePausedAt = now;
-      if (now - strokePausedAt > 150) lastFinger = null;
+      if (now - strokePausedAt > 150) {
+        lastFinger = null;
+        finishStroke();
+      }
     } else {
-      if (isRepositioning || (strokePausedAt && now - strokePausedAt > 110)) lastFinger = null;
+      if (isRepositioning || (strokePausedAt && now - strokePausedAt > 110)) {
+        lastFinger = null;
+        finishStroke();
+      }
       strokePausedAt = 0;
-      stroke(lastFinger, smoothFinger, Math.max(14, Math.min(22, palmWidth * 0.13)));
+      stroke(lastFinger, smoothFinger, Math.max(12, Math.min(22, calibratedPalmWidth * 0.13)));
+      currentStroke.push({ ...smoothFinger });
       lastFinger = smoothFinger;
     }
     lastFingerAt = now;
   } else {
+    finishStroke();
     lastFinger = null;
     lastFingerAt = 0;
     strokePausedAt = 0;
