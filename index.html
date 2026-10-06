@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#dfe8eb" />
+    <meta name="description" content="用指尖在雾面镜上写字，并用嘴形哈气重新起雾。所有识别均在设备本地完成。" />
+    <title>雾面镜 · Foggy Mirror</title>
+  </head>
+  <body>
+    <main id="app">
+      <video id="camera" autoplay playsinline muted></video>
+      <canvas id="mirror" aria-label="雾面镜交互画布"></canvas>
+
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">ON-DEVICE VISION</p>
+          <h1>雾面镜</h1>
+        </div>
+        <div id="privacy" class="privacy"><span></span>影像不离开设备</div>
+      </header>
+
+      <section class="guide" aria-live="polite">
+        <div class="step"><b>01</b><span>伸出食指</span><small>其余手指收起</small></div>
+        <div class="line"></div>
+        <div class="step"><b>02</b><span>隔空书写</span><small>指尖划开雾气</small></div>
+        <div class="line"></div>
+        <div class="step"><b>03</b><span>噘嘴哈气</span><small>保持约半秒</small></div>
+      </section>
+
+      <aside class="status-panel">
+        <div id="handState" class="state"><i></i><span>正在加载手部识别…</span></div>
+        <div id="faceState" class="state"><i></i><span>正在加载嘴形识别…</span></div>
+      </aside>
+
+      <div id="cursor" class="cursor" aria-hidden="true"></div>
+      <div id="breathPulse" class="breath-pulse" aria-hidden="true"></div>
+
+      <nav class="controls" aria-label="镜面控制">
+        <button id="resetButton" type="button">重新起雾</button>
+        <button id="clearButton" type="button" class="secondary">清空雾气</button>
+      </nav>
+
+      <div id="permission" class="permission-card">
+        <div class="lens">◉</div>
+        <p class="eyebrow">PRIVATE BY DESIGN</p>
+        <h2>让镜子看见你</h2>
+        <p>摄像头画面只在本机用于手部与嘴形识别，不会上传或保存。</p>
+        <button id="startButton" type="button">开启摄像头</button>
+        <small>建议在光线均匀的环境中使用</small>
+      </div>
+
+      <div id="toast" class="toast" role="status"></div>
+
+      <footer>
+        <span>基于 <a href="https://github.com/quiet-node/gesture-lab" target="_blank" rel="noreferrer">quiet-node / Gesture Lab</a> 的 Foggy Mirror</span>
+        <a href="https://github.com/Frieda0726/foggy-mirror" target="_blank" rel="noreferrer">Source ↗</a>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
