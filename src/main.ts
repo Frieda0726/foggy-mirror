@@ -1,14 +1,13 @@
 import { FaceLandmarker, FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import type { FaceLandmarkerResult, HandLandmarkerResult, NormalizedLandmark } from '@mediapipe/tasks-vision';
+import { FogRenderer } from './FogRenderer';
 import './style.css';
 
 const video = required<HTMLVideoElement>('camera');
 const canvas = required<HTMLCanvasElement>('mirror');
-const ctx = canvas.getContext('2d', { alpha: true })!;
 const mask = document.createElement('canvas');
 const maskCtx = mask.getContext('2d', { alpha: true })!;
-const blur = document.createElement('canvas');
-const blurCtx = blur.getContext('2d', { alpha: false })!;
+const renderer = new FogRenderer(canvas, video);
 const startButton = required<HTMLButtonElement>('startButton');
 const resetButton = required<HTMLButtonElement>('resetButton');
 const clearButton = required<HTMLButtonElement>('clearButton');
@@ -28,7 +27,7 @@ let smoothFinger: Point | null = null;
 let puckerStartedAt = 0;
 let lastBreathAt = 0;
 let toastTimer = 0;
-let noisePattern: CanvasPattern | null = null;
+let lastRecoveryAt = 0;
 
 type Point = { x: number; y: number };
 
@@ -40,31 +39,10 @@ function required<T extends HTMLElement>(id: string): T {
 
 function resize(): void {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.round(innerWidth * dpr);
-  canvas.height = Math.round(innerHeight * dpr);
+  renderer.resize(innerWidth, innerHeight, dpr);
   mask.width = canvas.width;
   mask.height = canvas.height;
-  blur.width = Math.max(80, Math.round(innerWidth * 0.1));
-  blur.height = Math.max(50, Math.round(innerHeight * 0.1));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   maskCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  createNoise();
-}
-
-function createNoise(): void {
-  const tile = document.createElement('canvas');
-  tile.width = tile.height = 160;
-  const tileCtx = tile.getContext('2d')!;
-  const image = tileCtx.createImageData(tile.width, tile.height);
-  for (let i = 0; i < image.data.length; i += 4) {
-    const value = 180 + Math.random() * 70;
-    image.data[i] = value;
-    image.data[i + 1] = value + 3;
-    image.data[i + 2] = value + 5;
-    image.data[i + 3] = 22 + Math.random() * 24;
-  }
-  tileCtx.putImageData(image, 0, 0);
-  noisePattern = ctx.createPattern(tile, 'repeat');
 }
 
 function resetFog(): void {
@@ -117,30 +95,18 @@ function addFog(point: Point, radius: number): void {
   maskCtx.restore();
 }
 
-function render(): void {
-  ctx.clearRect(0, 0, innerWidth, innerHeight);
-  if (video.readyState >= 2) {
-    blurCtx.save();
-    blurCtx.translate(blur.width, 0);
-    blurCtx.scale(-1, 1);
-    blurCtx.drawImage(video, 0, 0, blur.width, blur.height);
-    blurCtx.restore();
-    ctx.drawImage(blur, 0, 0, innerWidth, innerHeight);
-  }
-  const fog = ctx.createLinearGradient(0, 0, 0, innerHeight);
-  fog.addColorStop(0, 'rgba(224,235,237,.88)');
-  fog.addColorStop(.52, 'rgba(202,218,221,.83)');
-  fog.addColorStop(1, 'rgba(175,196,201,.86)');
-  ctx.fillStyle = fog;
-  ctx.fillRect(0, 0, innerWidth, innerHeight);
-  if (noisePattern) {
-    ctx.fillStyle = noisePattern;
-    ctx.fillRect(0, 0, innerWidth, innerHeight);
-  }
-  ctx.save();
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.drawImage(mask, 0, 0, innerWidth, innerHeight);
-  ctx.restore();
+function render(now = performance.now()): void {
+  renderer.render(mask, now);
+}
+
+function recoverCondensation(now: number): void {
+  if (now - lastRecoveryAt < 80) return;
+  lastRecoveryAt = now;
+  maskCtx.save();
+  maskCtx.globalCompositeOperation = 'destination-out';
+  maskCtx.fillStyle = 'rgba(0,0,0,0.012)';
+  maskCtx.fillRect(0, 0, innerWidth, innerHeight);
+  maskCtx.restore();
 }
 
 function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
@@ -304,7 +270,8 @@ function loop(now: number): void {
     updateHand(handLandmarker.detectForVideo(video, now));
     updateFace(faceLandmarker.detectForVideo(video, now), now);
   }
-  render();
+  recoverCondensation(now);
+  render(now);
   requestAnimationFrame(loop);
 }
 
