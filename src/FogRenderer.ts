@@ -59,25 +59,6 @@ vec3 softVideo(vec2 uv, float radius) {
   return color;
 }
 
-vec3 droplets(vec2 uv, float fog) {
-  vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
-  vec2 gridUv = uv * aspect * 21.0;
-  vec2 cell = floor(gridUv);
-  vec2 local = fract(gridUv) - 0.5;
-  float seed = hash21(cell);
-  vec2 centre = vec2(hash21(cell + 3.1), hash21(cell + 7.7)) - 0.5;
-  centre *= 0.55;
-  float fall = fract(seed * 7.31 + u_time * (0.018 + seed * 0.028));
-  centre.y += mix(0.22, -0.34, fall) * step(0.72, seed);
-  vec2 d = local - centre;
-  float size = mix(0.055, 0.19, seed * seed);
-  float body = smoothstep(size, size * 0.42, length(d * vec2(0.8, 1.15)));
-  float rim = smoothstep(size * 1.15, size * 0.76, length(d)) - smoothstep(size * 0.78, size * 0.5, length(d));
-  float sparkle = smoothstep(size * 0.34, 0.0, length(d - vec2(-size * 0.28, size * 0.26)));
-  float trail = smoothstep(size * 0.42, 0.0, abs(d.x)) * smoothstep(0.42, 0.0, d.y) * step(0.7, seed) * 0.24;
-  return vec3(body, rim + trail, sparkle) * fog;
-}
-
 void main() {
   vec2 uv = v_uv;
   float cleared = texture(u_mask, uv).r;
@@ -90,14 +71,13 @@ void main() {
     fbm(uv * 8.0 + vec2(8.4, -u_time * 0.008)) - 0.5
   );
 
-  vec3 drops = droplets(uv, fog);
-  vec2 refractedUv = uv + distortion * 0.004 * fog + (drops.xy - 0.25) * 0.008;
+  vec2 refractedUv = uv + distortion * 0.003 * fog;
   vec3 clearVideo = sampleVideo(refractedUv).rgb;
   vec3 blurredVideo = softVideo(refractedUv, 8.0 + fog * 14.0);
 
   vec3 coolFog = mix(vec3(0.72, 0.79, 0.80), vec3(0.91, 0.94, 0.94), n1);
-  coolFog += (n2 - 0.5) * 0.055;
-  vec3 fogged = mix(blurredVideo, coolFog, 0.76 + n1 * 0.12);
+  coolFog += (n2 - 0.5) * 0.028;
+  vec3 fogged = mix(blurredVideo, coolFog, 0.72 + n1 * 0.12);
 
   vec2 px = 2.0 / u_resolution;
   float nearMask = max(max(texture(u_mask, uv + vec2(px.x, 0)).r, texture(u_mask, uv - vec2(px.x, 0)).r),
@@ -105,10 +85,7 @@ void main() {
   float edge = clamp(nearMask - cleared, 0.0, 1.0);
 
   vec3 color = mix(fogged, clearVideo, smoothstep(0.02, 0.82, cleared));
-  color += vec3(0.72, 0.92, 0.94) * edge * 0.22;
-  color += vec3(0.48, 0.58, 0.60) * drops.y * 0.38;
-  color += vec3(1.0) * drops.z * 0.72;
-  color = mix(color, color * vec3(0.78, 0.88, 0.91), drops.x * 0.1);
+  color += vec3(0.72, 0.92, 0.94) * edge * 0.14;
 
   float vignette = smoothstep(0.92, 0.28, distance(uv, vec2(0.5)));
   color *= mix(0.84, 1.0, vignette);
