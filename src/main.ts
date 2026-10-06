@@ -193,7 +193,7 @@ function updateHand(result: HandLandmarkerResult): void {
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
-    stroke(lastFinger, smoothFinger, Math.max(6, Math.min(12, palmWidth * 0.075)));
+    stroke(lastFinger, smoothFinger, Math.max(14, Math.min(22, palmWidth * 0.13)));
     lastFinger = smoothFinger;
   } else {
     lastFinger = null;
@@ -236,11 +236,14 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
+    const faceCenter = face[1]
+      ? { x: (1 - face[1]!.x) * innerWidth, y: face[1]!.y * innerHeight }
+      : mouth;
     const faceWidth = distance(face[234]!, face[454]!) * innerWidth;
-    const breathRadius = Math.max(80, Math.min(175, faceWidth * 0.46));
+    const breathRadius = Math.max(170, Math.min(360, faceWidth * 1.08));
     breathClouds.push({
-      origin: mouth,
-      radius: breathRadius * 1.2,
+      origin: { x: (mouth.x + faceCenter.x) / 2, y: (mouth.y + faceCenter.y) / 2 },
+      radius: breathRadius,
       startedAt: now,
       emitted: 0,
       seed: now * 0.013,
@@ -342,8 +345,8 @@ function loop(now: number): void {
 }
 
 let pointerDown = false;
-canvas.addEventListener('pointerdown', (event) => { pointerDown = true; lastFinger = { x: event.clientX, y: event.clientY }; stroke(null, lastFinger, 9); });
-canvas.addEventListener('pointermove', (event) => { if (!pointerDown) return; const next = { x: event.clientX, y: event.clientY }; stroke(lastFinger, next, 9); lastFinger = next; });
+canvas.addEventListener('pointerdown', (event) => { pointerDown = true; lastFinger = { x: event.clientX, y: event.clientY }; stroke(null, lastFinger, 18); });
+canvas.addEventListener('pointermove', (event) => { if (!pointerDown) return; const next = { x: event.clientX, y: event.clientY }; stroke(lastFinger, next, 18); lastFinger = next; });
 window.addEventListener('pointerup', () => { pointerDown = false; lastFinger = null; });
 window.addEventListener('resize', () => { resize(); resetFog(); });
 startButton.addEventListener('click', start);
