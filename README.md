@@ -1,0 +1,30 @@
+# Foggy Mirror / 雾面镜
+
+一个完全在浏览器本地运行的互动雾面镜：伸出食指在雾气上写字；保持噘嘴哈气的嘴形约半秒，会在嘴部周围重新生成雾气。
+
+## 功能
+
+- MediaPipe Hand Landmarker 识别食指指尖和书写姿势
+- MediaPipe Face Landmarker `mouthPucker` 表情分数识别哈气嘴形
+- Canvas 实时雾化、局部擦除与局部重新起雾
+- 鼠标或触控书写回退
+- 摄像头画面和识别均留在本机，不上传、不保存
+
+> 普通摄像头不能直接检测气流，因此“哈气”功能根据噘嘴动作及其持续时间进行视觉推断。
+
+## 本地运行
+
+```bash
+npm install
+npm run dev
+```
+
+打开 `http://127.0.0.1:2502`，允许摄像头权限。
+
+## 来源与署名
+
+本项目从 [quiet-node/gesture-lab](https://github.com/quiet-node/gesture-lab) 的 **Foggy Mirror** 实验独立演化而来。原项目由 [quiet-node](https://github.com/quiet-node) 创建；本项目保留原 MIT 版权声明，并由 [Frieda0726](https://github.com/Frieda0726) 继续维护和扩展。
+
+## License
+
+[MIT](LICENSE)
