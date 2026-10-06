@@ -24,7 +24,6 @@ let running = false;
 let lastVideoTime = -1;
 let lastFinger: Point | null = null;
 let smoothFinger: Point | null = null;
-let fingerAnchor: Point | null = null;
 let fingerHoldStartedAt = 0;
 let fingerArmed = false;
 let puckerStartedAt = 0;
@@ -143,12 +142,8 @@ function recoverCondensation(now: number): void {
 }
 
 function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
-  const indexTip = landmarks[8]!;
-  const indexPip = landmarks[6]!;
-  const otherTips = [landmarks[12]!, landmarks[16]!, landmarks[20]!];
-  const indexExtended = indexTip.y < indexPip.y - 0.01;
-  const indexIsLeading = otherTips.filter((tip) => indexTip.y + 0.012 < tip.y).length >= 2;
-  return indexExtended && indexIsLeading;
+  const indexTip = landmarks[8];
+  return Boolean(indexTip && Number.isFinite(indexTip.x) && Number.isFinite(indexTip.y));
 }
 
 function updateHand(result: HandLandmarkerResult): void {
@@ -156,7 +151,6 @@ function updateHand(result: HandLandmarkerResult): void {
   if (!landmarks) {
     lastFinger = null;
     smoothFinger = null;
-    fingerAnchor = null;
     fingerHoldStartedAt = 0;
     fingerArmed = false;
     cursor.style.opacity = '0';
@@ -171,16 +165,14 @@ function updateHand(result: HandLandmarkerResult): void {
   const pointing = isFingerWriting(landmarks);
   const now = performance.now();
   if (pointing && !fingerArmed) {
-    if (!fingerAnchor || distance2D(fingerAnchor, smoothFinger) > 18) {
-      fingerAnchor = { ...smoothFinger };
+    if (!fingerHoldStartedAt) {
       fingerHoldStartedAt = now;
-    } else if (now - fingerHoldStartedAt > 400) {
+    } else if (now - fingerHoldStartedAt > 350) {
       fingerArmed = true;
       lastFinger = null;
       showToast('已落笔 · 移动食指书写');
     }
   } else if (!pointing) {
-    fingerAnchor = null;
     fingerHoldStartedAt = 0;
     fingerArmed = false;
   }
@@ -188,8 +180,8 @@ function updateHand(result: HandLandmarkerResult): void {
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  const readyProgress = fingerHoldStartedAt ? Math.min(100, Math.round(((now - fingerHoldStartedAt) / 400) * 100)) : 0;
-  setState(handState, true, writing ? '已落笔 · 移动食指书写' : pointing ? `保持指尖稳定 · ${readyProgress}%` : '光标模式 · 伸出食指');
+  const readyProgress = fingerHoldStartedAt ? Math.min(100, Math.round(((now - fingerHoldStartedAt) / 350) * 100)) : 0;
+  setState(handState, true, writing ? '正在书写 · 移动食指' : `识别食指 · ${readyProgress}%`);
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
@@ -260,10 +252,6 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
 }
 
 function distance(a: NormalizedLandmark, b: NormalizedLandmark): number {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-function distance2D(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
