@@ -144,11 +144,12 @@ function render(): void {
 }
 
 function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
-  const indexExtended = landmarks[8]!.y < landmarks[6]!.y && landmarks[6]!.y < landmarks[5]!.y;
-  const middleCurled = landmarks[12]!.y > landmarks[10]!.y;
-  const ringCurled = landmarks[16]!.y > landmarks[14]!.y;
-  const pinkyCurled = landmarks[20]!.y > landmarks[18]!.y;
-  return indexExtended && middleCurled && ringCurled && pinkyCurled;
+  const indexTip = landmarks[8]!;
+  const indexPip = landmarks[6]!;
+  const otherTips = [landmarks[12]!, landmarks[16]!, landmarks[20]!];
+  const indexExtended = indexTip.y < indexPip.y - 0.012;
+  const indexIsLeading = otherTips.filter((tip) => indexTip.y + 0.018 < tip.y).length >= 2;
+  return indexExtended && indexIsLeading;
 }
 
 function updateHand(result: HandLandmarkerResult): void {
@@ -163,17 +164,17 @@ function updateHand(result: HandLandmarkerResult): void {
   const tip = landmarks[8]!;
   const raw = { x: (1 - tip.x) * innerWidth, y: tip.y * innerHeight };
   smoothFinger = smoothFinger
-    ? { x: smoothFinger.x * 0.62 + raw.x * 0.38, y: smoothFinger.y * 0.62 + raw.y * 0.38 }
+    ? { x: smoothFinger.x * 0.55 + raw.x * 0.45, y: smoothFinger.y * 0.55 + raw.y * 0.45 }
     : raw;
   const writing = isFingerWriting(landmarks);
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  setState(handState, true, writing ? '正在书写 · 移动食指' : '已检测手部 · 收起其余手指');
+  setState(handState, true, writing ? '正在书写 · 移动食指' : '已检测手部 · 让食指高于其他手指');
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
-    stroke(lastFinger, smoothFinger, Math.max(10, Math.min(25, palmWidth * 0.16)));
+    stroke(lastFinger, smoothFinger, Math.max(6, Math.min(12, palmWidth * 0.075)));
     lastFinger = smoothFinger;
   } else {
     lastFinger = null;
@@ -184,24 +185,29 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   const face = result.faceLandmarks[0];
   const scores = result.faceBlendshapes[0]?.categories;
   const pucker = scores?.find((item) => item.categoryName === 'mouthPucker')?.score ?? 0;
+  const jawOpen = scores?.find((item) => item.categoryName === 'jawOpen')?.score ?? 0;
   if (!face) {
     puckerStartedAt = 0;
     setState(faceState, false, '未检测到面部 · 正对镜头');
     return;
   }
-  const active = pucker > 0.38;
-  setState(faceState, true, active ? `识别哈气嘴形 · ${Math.round(pucker * 100)}%` : '已检测面部 · 噘嘴哈气');
+  const active = pucker > 0.56 && jawOpen > 0.06;
+  const progress = puckerStartedAt ? Math.min(100, Math.round(((now - puckerStartedAt) / 750) * 100)) : 0;
+  setState(faceState, true, active ? `保持哈气嘴形 · ${progress}%` : '已检测面部 · 噘嘴并微微张口');
   if (!active) {
     puckerStartedAt = 0;
     return;
   }
   if (!puckerStartedAt) puckerStartedAt = now;
-  if (now - puckerStartedAt > 450 && now - lastBreathAt > 1350) {
+  if (now - puckerStartedAt > 750 && now - lastBreathAt > 1800) {
     const upperLip = face[13]!;
     const lowerLip = face[14]!;
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
     const faceWidth = distance(face[234]!, face[454]!) * innerWidth;
-    addFog(mouth, Math.max(95, Math.min(230, faceWidth * 0.62)));
+    const breathRadius = Math.max(80, Math.min(175, faceWidth * 0.46));
+    addFog(mouth, breathRadius);
+    addFog({ x: mouth.x - breathRadius * 0.38, y: mouth.y - breathRadius * 0.1 }, breathRadius * 0.55);
+    addFog({ x: mouth.x + breathRadius * 0.34, y: mouth.y + breathRadius * 0.08 }, breathRadius * 0.5);
     breathPulse.style.left = `${mouth.x}px`;
     breathPulse.style.top = `${mouth.y}px`;
     breathPulse.classList.remove('play');
@@ -269,6 +275,7 @@ async function start(): Promise<void> {
     video.srcObject = stream;
     await video.play();
     permission.classList.add('hidden');
+    document.body.classList.add('running');
     running = true;
     showToast('准备好了 · 伸出食指开始写字');
     requestAnimationFrame(loop);
@@ -292,8 +299,8 @@ function loop(now: number): void {
 }
 
 let pointerDown = false;
-canvas.addEventListener('pointerdown', (event) => { pointerDown = true; lastFinger = { x: event.clientX, y: event.clientY }; stroke(null, lastFinger, 16); });
-canvas.addEventListener('pointermove', (event) => { if (!pointerDown) return; const next = { x: event.clientX, y: event.clientY }; stroke(lastFinger, next, 16); lastFinger = next; });
+canvas.addEventListener('pointerdown', (event) => { pointerDown = true; lastFinger = { x: event.clientX, y: event.clientY }; stroke(null, lastFinger, 9); });
+canvas.addEventListener('pointermove', (event) => { if (!pointerDown) return; const next = { x: event.clientX, y: event.clientY }; stroke(lastFinger, next, 9); lastFinger = next; });
 window.addEventListener('pointerup', () => { pointerDown = false; lastFinger = null; });
 window.addEventListener('resize', () => { resize(); resetFog(); });
 startButton.addEventListener('click', start);
