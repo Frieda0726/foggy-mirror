@@ -85,13 +85,13 @@ function stroke(from: Point | null, to: Point, radius = 18): void {
   maskCtx.restore();
 }
 
-function addFog(point: Point, radius: number): void {
+function clearFogWithBreath(point: Point, radius: number): void {
   maskCtx.save();
-  maskCtx.globalCompositeOperation = 'destination-out';
   const gradient = maskCtx.createRadialGradient(point.x, point.y, radius * 0.12, point.x, point.y, radius);
-  gradient.addColorStop(0, 'rgba(0,0,0,.98)');
-  gradient.addColorStop(0.48, 'rgba(0,0,0,.72)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  gradient.addColorStop(0, 'rgba(255,255,255,.98)');
+  gradient.addColorStop(0.5, 'rgba(255,255,255,.82)');
+  gradient.addColorStop(0.78, 'rgba(255,255,255,.34)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
   maskCtx.fillStyle = gradient;
   maskCtx.beginPath();
   maskCtx.arc(point.x, point.y, radius, 0, Math.PI * 2);
@@ -209,9 +209,15 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     const mouth = { x: (1 - (upperLip.x + lowerLip.x) / 2) * innerWidth, y: ((upperLip.y + lowerLip.y) / 2) * innerHeight };
     const faceWidth = distance(face[234]!, face[454]!) * innerWidth;
     const breathRadius = Math.max(80, Math.min(175, faceWidth * 0.46));
-    addFog(mouth, breathRadius);
-    addFog({ x: mouth.x - breathRadius * 0.38, y: mouth.y - breathRadius * 0.1 }, breathRadius * 0.55);
-    addFog({ x: mouth.x + breathRadius * 0.34, y: mouth.y + breathRadius * 0.08 }, breathRadius * 0.5);
+    clearFogWithBreath(mouth, breathRadius);
+    clearFogWithBreath(
+      { x: mouth.x - breathRadius * 0.34, y: mouth.y - breathRadius * 0.08 },
+      breathRadius * 0.58
+    );
+    clearFogWithBreath(
+      { x: mouth.x + breathRadius * 0.34, y: mouth.y + breathRadius * 0.08 },
+      breathRadius * 0.58
+    );
     breathPulse.style.left = `${mouth.x}px`;
     breathPulse.style.top = `${mouth.y}px`;
     breathPulse.classList.remove('play');
@@ -219,7 +225,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     breathPulse.classList.add('play');
     lastBreathAt = now;
     puckerStartedAt = 0;
-    showToast('呼——镜面重新起雾了');
+    showToast('呼——雾气被吹开了');
   }
 }
 
