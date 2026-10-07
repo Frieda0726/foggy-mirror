@@ -1,65 +1,65 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#f7c9d9" />
-    <meta name="description" content="用指尖在雾面镜上写字，并用嘴形哈气重新起雾。所有识别均在设备本地完成。" />
-    <title>雾面镜 · Foggy Mirror</title>
+    <meta name="description" content="Write on a fogged mirror with a pinch gesture, then clear the mist with a breath gesture. All vision processing stays on device." />
+    <title>Foggy Mirror</title>
   </head>
   <body>
     <main id="app">
       <video id="camera" autoplay playsinline muted></video>
-      <canvas id="mirror" aria-label="雾面镜交互画布"></canvas>
+      <canvas id="mirror" aria-label="Interactive foggy mirror"></canvas>
 
       <header class="topbar">
         <div>
           <p class="eyebrow">ON-DEVICE VISION</p>
-          <h1>雾面镜</h1>
+          <h1>Foggy Mirror</h1>
         </div>
-        <div id="privacy" class="privacy"><span></span>影像不离开设备</div>
+        <div id="privacy" class="privacy"><span></span>On-device only</div>
       </header>
 
       <section class="guide" aria-live="polite">
-        <div class="step"><b>01</b><span>找到指尖</span><small>松开时只移动光标</small></div>
+        <div class="step"><b>01</b><span>Find your fingertip</span><small>Move freely while released</small></div>
         <div class="line"></div>
-        <div class="step"><b>02</b><span>捏合书写</span><small>拇指与食指捏住写，松开停</small></div>
+        <div class="step"><b>02</b><span>Pinch to write</span><small>Pinch to draw, release to stop</small></div>
         <div class="line"></div>
-        <div class="step"><b>03</b><span>张嘴哈气</span><small>吹开嘴前方的雾气</small></div>
+        <div class="step"><b>03</b><span>Breathe on the mirror</span><small>Open your mouth to clear the mist</small></div>
       </section>
 
-      <aside class="status-panel">
-        <div id="handState" class="state"><i></i><span>正在加载手部识别…</span></div>
-        <div id="recognitionState" class="state"><i></i><span>智能美字待命</span></div>
-        <div id="faceState" class="state"><i></i><span>正在加载嘴形识别…</span></div>
+      <aside class="status-panel" hidden aria-hidden="true">
+        <div id="handState" class="state"><i></i><span>Loading hand tracking…</span></div>
+        <div id="recognitionState" class="state"><i></i><span>Recognition ready</span></div>
+        <div id="faceState" class="state"><i></i><span>Loading face tracking…</span></div>
       </aside>
 
       <div id="cursor" class="cursor" aria-hidden="true"></div>
       <div id="breathPulse" class="breath-pulse" aria-hidden="true"></div>
       <div id="writeCalibration" class="write-calibration" aria-live="polite">
         <div class="calibration-ring">♡</div>
-        <span>伸出手指，正在自动校准捏合距离…</span>
+        <span>Hold up your hand while we calibrate your pinch…</span>
       </div>
 
-      <nav class="controls" aria-label="镜面控制">
-        <button id="beautifyButton" type="button" class="smart active">智能美字 · 开</button>
-        <button id="resetButton" type="button">重新起雾</button>
-        <button id="clearButton" type="button" class="secondary">清空雾气</button>
+      <nav class="controls" aria-label="Mirror controls">
+        <button id="beautifyButton" type="button" class="smart active" hidden>Smart script</button>
+        <button id="resetButton" type="button">Fog up</button>
+        <button id="clearButton" type="button" class="secondary">Clear mirror</button>
       </nav>
 
       <div id="permission" class="permission-card">
         <div class="lens">◉</div>
         <p class="eyebrow">PRIVATE BY DESIGN</p>
-        <h2>让镜子看见你</h2>
-        <p>摄像头画面只在本机用于手部与嘴形识别，不会上传或保存。</p>
-        <button id="startButton" type="button">开启摄像头</button>
-        <small>建议在光线均匀的环境中使用 · 智能美字首次使用需加载本地识别模型</small>
+        <h2>Let the mirror see you</h2>
+        <p>Your camera is processed only on this device for hand and face tracking. Nothing is uploaded or saved.</p>
+        <button id="startButton" type="button">Enable camera</button>
+        <small>Best experienced in soft, even lighting</small>
       </div>
 
       <div id="toast" class="toast" role="status"></div>
 
       <footer>
-        <span>基于 <a href="https://github.com/quiet-node/gesture-lab" target="_blank" rel="noreferrer">quiet-node / Gesture Lab</a> 的 Foggy Mirror</span>
+        <span>Inspired by Foggy Mirror from <a href="https://github.com/quiet-node/gesture-lab" target="_blank" rel="noreferrer">quiet-node / Gesture Lab</a></span>
         <a href="https://github.com/Frieda0726/foggy-mirror" target="_blank" rel="noreferrer">Source ↗</a>
       </footer>
     </main>
