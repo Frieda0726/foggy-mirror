@@ -79,7 +79,7 @@ function resetFog(): void {
   maskCtx.setTransform(1, 0, 0, 1, 0, 0);
   maskCtx.clearRect(0, 0, mask.width, mask.height);
   maskCtx.restore();
-  showToast('镜面已重新起雾');
+  showToast('The mirror has fogged up');
 }
 
 function clearAllFog(): void {
@@ -87,7 +87,7 @@ function clearAllFog(): void {
   maskCtx.fillStyle = '#fff';
   maskCtx.fillRect(0, 0, innerWidth, innerHeight);
   maskCtx.restore();
-  showToast('雾气已清空');
+  showToast('Mirror cleared');
 }
 
 function stroke(from: Point | null, to: Point, radius = 18): void {
@@ -177,7 +177,7 @@ function finishStroke(): void {
     return;
   }
   if (currentStroke.length >= 18 && looksLikeHeart(currentStroke)) {
-    showToast('♡ 识别到爱心');
+    showToast('♡ Heart detected');
     pendingWordStrokes = [];
     window.clearTimeout(recognitionTimer);
   } else if (beautifyEnabled) {
@@ -191,7 +191,6 @@ function finishStroke(): void {
 async function getRecognitionWorker(): Promise<Worker> {
   if (recognitionWorker) return recognitionWorker;
   if (!recognitionWorkerPromise) {
-    showToast('正在加载本地手写识别模型…');
     recognitionWorkerPromise = (async () => {
       const worker = await createWorker('eng');
       await worker.setParameters({
@@ -225,7 +224,6 @@ async function beautifyPendingWord(): Promise<void> {
   if (width < 18 || height < 18) return;
 
   recognitionBusy = true;
-  beautifyButton.textContent = '正在识别…';
   try {
     const padding = Math.max(24, height * 0.35);
     const scale = Math.min(3, 480 / Math.max(width + padding * 2, height + padding * 2));
@@ -255,8 +253,7 @@ async function beautifyPendingWord(): Promise<void> {
     const result = await worker.recognize(sample);
     const text = result.data.text.replace(/[^A-Za-z0-9 ]/g, '').trim();
     if (!text || result.data.confidence < 62) {
-      showToast('没有看清 · 已保留原笔迹');
-      setState(recognitionState, false, '未能确认文字 · 已保留原笔迹');
+      setState(recognitionState, false, 'Original strokes preserved');
       return;
     }
 
@@ -274,14 +271,12 @@ async function beautifyPendingWord(): Promise<void> {
     maskCtx.font = `500 ${fontSize}px "Bradley Hand", "Segoe Print", "KaiTi", cursive`;
     maskCtx.fillText(text, (left + right) / 2, (top + bottom) / 2, width + areaPadding);
     maskCtx.restore();
-    showToast(`已识别「${text}」· 智能美字完成`);
-    setState(recognitionState, true, `识别完成 · ${text}`);
+    setState(recognitionState, true, `Recognized · ${text}`);
   } catch (error) {
     console.error(error);
-    showToast('识别模型暂不可用 · 已保留原笔迹');
   } finally {
     recognitionBusy = false;
-    beautifyButton.textContent = beautifyEnabled ? '智能美字 · 开' : '智能美字 · 关';
+    beautifyButton.textContent = 'Smart script';
   }
 }
 
@@ -298,7 +293,7 @@ async function analyzeWritingLive(): Promise<void> {
   if (width < 18 || height < 18) return;
 
   recognitionBusy = true;
-  setState(recognitionState, true, '正在理解你的笔迹…');
+  setState(recognitionState, true, 'Analyzing handwriting…');
   try {
     const padding = Math.max(24, height * 0.35);
     const scale = Math.min(2.5, 420 / Math.max(width + padding * 2, height + padding * 2));
@@ -334,11 +329,11 @@ async function analyzeWritingLive(): Promise<void> {
     setState(
       recognitionState,
       Boolean(stableCandidate),
-      stableCandidate ? `可能是 · ${candidate}` : '正在分析笔画…'
+      stableCandidate ? `Possible · ${candidate}` : 'Analyzing strokes…'
     );
   } catch (error) {
     console.error(error);
-    setState(recognitionState, false, '智能识别暂不可用');
+    setState(recognitionState, false, 'Recognition unavailable');
   } finally {
     recognitionBusy = false;
   }
@@ -378,7 +373,7 @@ function updateHand(result: HandLandmarkerResult): void {
     lastFingerAt = 0;
     penRepositioning = false;
     cursor.style.opacity = '0';
-    setState(handState, false, '未检测到手 · 伸出食指');
+    setState(handState, false, 'No hand detected');
     return;
   }
   const tip = landmarks[8]!;
@@ -407,7 +402,7 @@ function updateHand(result: HandLandmarkerResult): void {
       calibratedMoveSpeed = median(speedSamples) || 0.32;
       handCalibrated = true;
       writeCalibration.classList.add('done');
-      showToast('书写已校准 · 可以写字或画爱心');
+      showToast('Pinch calibrated · Ready to write');
     }
   }
   const pinchRatio = distance(landmarks[4]!, landmarks[8]!) / palmSpan;
@@ -415,7 +410,6 @@ function updateHand(result: HandLandmarkerResult): void {
   if (pinching && !fingerArmed) {
     fingerArmed = true;
     lastFinger = null;
-    showToast('已落笔 · 保持捏合开始写字');
   } else if (!pinching && fingerArmed) {
     fingerArmed = false;
     finishStroke();
@@ -425,7 +419,7 @@ function updateHand(result: HandLandmarkerResult): void {
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  setState(handState, true, writing ? '正在书写 · 捏合中' : `悬停 · 捏合开始写 (${Math.round(pinchRatio * 100)}%)`);
+  setState(handState, true, writing ? 'Writing · Pinched' : `Hovering · Pinch to write (${Math.round(pinchRatio * 100)}%)`);
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const elapsed = lastFingerAt ? Math.max(1, now - lastFingerAt) : 16;
@@ -470,7 +464,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   if (!face) {
     puckerStartedAt = 0;
     mouthCalibrationFrames = 0;
-    setState(faceState, false, '未检测到面部 · 正对镜头');
+    setState(faceState, false, 'No face detected');
     return;
   }
   const mouthWidth = Math.max(0.001, distance(face[61]!, face[291]!));
@@ -493,7 +487,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
   setState(
     faceState,
     true,
-    !calibrated ? `正在校准嘴形 · ${Math.round((mouthCalibrationFrames / 24) * 100)}%` : active ? `正在识别哈气 · ${holdProgress}%` : `哈气识别 ${confidence}% · 张嘴哈气`
+    !calibrated ? `Calibrating breath · ${Math.round((mouthCalibrationFrames / 24) * 100)}%` : active ? `Detecting breath · ${holdProgress}%` : `Breath ${confidence}% · Open your mouth`
   );
   if (!active) {
     puckerStartedAt = 0;
@@ -523,7 +517,7 @@ function updateFace(result: FaceLandmarkerResult, now: number): void {
     breathPulse.classList.add('play');
     lastBreathAt = now;
     puckerStartedAt = 0;
-    showToast('呼——雾气被吹开了');
+    showToast('Whoosh — the mist cleared');
   }
 }
 
@@ -574,7 +568,7 @@ async function initializeModels(): Promise<void> {
 
 async function start(): Promise<void> {
   startButton.disabled = true;
-  startButton.textContent = '正在准备本地模型…';
+  startButton.textContent = 'Preparing on-device models…';
   try {
     const [stream] = await Promise.all([
       navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
@@ -585,14 +579,14 @@ async function start(): Promise<void> {
     permission.classList.add('hidden');
     document.body.classList.add('running');
     running = true;
-    if (beautifyEnabled) void getRecognitionWorker().catch(() => setState(recognitionState, false, '智能识别模型加载失败'));
-    showToast('准备好了 · 伸出食指开始写字');
+    if (beautifyEnabled) void getRecognitionWorker().catch(() => setState(recognitionState, false, 'Recognition model unavailable'));
+    showToast('Ready · Pinch to start writing');
     requestAnimationFrame(loop);
   } catch (error) {
     console.error(error);
     startButton.disabled = false;
-    startButton.textContent = '重试开启摄像头';
-    showToast('无法启动，请检查摄像头权限与网络');
+    startButton.textContent = 'Try camera again';
+    showToast('Could not start · Check camera access and connection');
   }
 }
 
@@ -620,13 +614,12 @@ clearButton.addEventListener('click', clearAllFog);
 beautifyButton.addEventListener('click', () => {
   beautifyEnabled = !beautifyEnabled;
   beautifyButton.classList.toggle('active', beautifyEnabled);
-  beautifyButton.textContent = beautifyEnabled ? '智能美字 · 开' : '智能美字 · 关';
-  setState(recognitionState, beautifyEnabled, beautifyEnabled ? '智能美字待命' : '智能美字已关闭');
+  beautifyButton.textContent = 'Smart script';
+  setState(recognitionState, beautifyEnabled, beautifyEnabled ? 'Recognition ready' : 'Recognition off');
   if (!beautifyEnabled) {
     pendingWordStrokes = [];
     window.clearTimeout(recognitionTimer);
   }
-  showToast(beautifyEnabled ? '智能美字已开启' : '已切换为原始笔迹');
 });
 
 resize();
