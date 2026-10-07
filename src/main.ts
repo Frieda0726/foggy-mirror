@@ -28,10 +28,8 @@ let running = false;
 let lastVideoTime = -1;
 let lastFinger: Point | null = null;
 let smoothFinger: Point | null = null;
-let fingerHoldStartedAt = 0;
 let fingerArmed = false;
 let lastFingerAt = 0;
-let strokePausedAt = 0;
 let handCalibrationStartedAt = 0;
 let handCalibrated = false;
 let calibratedPalmWidth = 150;
@@ -165,11 +163,6 @@ function recoverCondensation(now: number): void {
   maskCtx.fillStyle = 'rgba(0,0,0,0.012)';
   maskCtx.fillRect(0, 0, innerWidth, innerHeight);
   maskCtx.restore();
-}
-
-function isFingerWriting(landmarks: NormalizedLandmark[]): boolean {
-  const indexTip = landmarks[8];
-  return Boolean(indexTip && Number.isFinite(indexTip.x) && Number.isFinite(indexTip.y));
 }
 
 function median(values: number[]): number {
@@ -381,10 +374,8 @@ function updateHand(result: HandLandmarkerResult): void {
     finishStroke();
     lastFinger = null;
     smoothFinger = null;
-    fingerHoldStartedAt = 0;
     fingerArmed = false;
     lastFingerAt = 0;
-    strokePausedAt = 0;
     penRepositioning = false;
     cursor.style.opacity = '0';
     setState(handState, false, '未检测到手 · 伸出食指');
@@ -395,9 +386,9 @@ function updateHand(result: HandLandmarkerResult): void {
   smoothFinger = smoothFinger
     ? { x: smoothFinger.x * 0.55 + raw.x * 0.45, y: smoothFinger.y * 0.55 + raw.y * 0.45 }
     : raw;
-  const pointing = isFingerWriting(landmarks);
   const now = performance.now();
-  const palmWidth = distance(landmarks[5]!, landmarks[17]!) * innerWidth;
+  const palmSpan = Math.max(0.001, distance(landmarks[5]!, landmarks[17]!));
+  const palmWidth = palmSpan * innerWidth;
   if (!handCalibrated) {
     if (!handCalibrationStartedAt) {
       handCalibrationStartedAt = now;
@@ -419,24 +410,22 @@ function updateHand(result: HandLandmarkerResult): void {
       showToast('书写已校准 · 可以写字或画爱心');
     }
   }
-  if (pointing && !fingerArmed) {
-    if (!fingerHoldStartedAt) {
-      fingerHoldStartedAt = now;
-    } else if (now - fingerHoldStartedAt > 350) {
-      fingerArmed = true;
-      lastFinger = null;
-      showToast('已落笔 · 移动食指书写');
-    }
-  } else if (!pointing) {
-    fingerHoldStartedAt = 0;
+  const pinchRatio = distance(landmarks[4]!, landmarks[8]!) / palmSpan;
+  const pinching = fingerArmed ? pinchRatio < 0.58 : pinchRatio < 0.38;
+  if (pinching && !fingerArmed) {
+    fingerArmed = true;
+    lastFinger = null;
+    showToast('已落笔 · 保持捏合开始写字');
+  } else if (!pinching && fingerArmed) {
     fingerArmed = false;
+    finishStroke();
+    lastFinger = null;
   }
-  const writing = pointing && fingerArmed && handCalibrated;
+  const writing = fingerArmed && handCalibrated;
   cursor.style.opacity = '1';
   cursor.style.transform = `translate(${smoothFinger.x}px, ${smoothFinger.y}px)`;
   cursor.classList.toggle('drawing', writing);
-  const readyProgress = fingerHoldStartedAt ? Math.min(100, Math.round(((now - fingerHoldStartedAt) / 350) * 100)) : 0;
-  setState(handState, true, writing ? '正在书写 · 移动食指' : `识别食指 · ${readyProgress}%`);
+  setState(handState, true, writing ? '正在书写 · 捏合中' : `悬停 · 捏合开始写 (${Math.round(pinchRatio * 100)}%)`);
   handState.classList.toggle('drawing', writing);
   if (writing) {
     const elapsed = lastFingerAt ? Math.max(1, now - lastFingerAt) : 16;
@@ -445,46 +434,28 @@ function updateHand(result: HandLandmarkerResult): void {
     // Preserve continuous strokes even when the fingertip moves quickly. A jump is
     // only treated as repositioning when tracking has clearly skipped a large gap.
     const isRepositioning = travel > Math.max(62, calibratedPalmWidth * 0.42) || speed > Math.max(1.85, calibratedMoveSpeed * 6);
-    const isPaused = lastFinger && speed < 0.025;
-
-    if (isPaused) {
-      if (!strokePausedAt) strokePausedAt = now;
-      if (now - strokePausedAt > 230) {
-        lastFinger = null;
-        finishStroke();
-      }
-    } else {
-      if (isRepositioning) {
-        lastFinger = null;
-        finishStroke();
-        penRepositioning = true;
-        strokePausedAt = 0;
-        lastFingerAt = now;
-        return;
-      }
-      if (penRepositioning) {
-        penRepositioning = false;
-        lastFinger = null;
-      }
-      if (strokePausedAt && now - strokePausedAt > 180) {
-        lastFinger = null;
-        finishStroke();
-      }
-      strokePausedAt = 0;
-      stroke(lastFinger, smoothFinger, Math.max(12, Math.min(22, calibratedPalmWidth * 0.13)));
-      currentStroke.push({ ...smoothFinger });
-      if (now - lastLiveRecognitionAt > 850 && currentStroke.length >= 10) {
-        lastLiveRecognitionAt = now;
-        void analyzeWritingLive();
-      }
-      lastFinger = smoothFinger;
+    if (isRepositioning) {
+      lastFinger = null;
+      penRepositioning = true;
+      lastFingerAt = now;
+      return;
     }
+    if (penRepositioning) {
+      penRepositioning = false;
+      lastFinger = null;
+    }
+    stroke(lastFinger, smoothFinger, Math.max(12, Math.min(22, calibratedPalmWidth * 0.13)));
+    currentStroke.push({ ...smoothFinger });
+    if (now - lastLiveRecognitionAt > 850 && currentStroke.length >= 10) {
+      lastLiveRecognitionAt = now;
+      void analyzeWritingLive();
+    }
+    lastFinger = smoothFinger;
     lastFingerAt = now;
   } else {
     finishStroke();
     lastFinger = null;
     lastFingerAt = 0;
-    strokePausedAt = 0;
     penRepositioning = false;
     lastLiveCandidate = '';
     liveCandidateHits = 0;
