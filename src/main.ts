@@ -183,7 +183,7 @@ function finishStroke(): void {
   } else if (beautifyEnabled) {
     pendingWordStrokes.push(currentStroke.map((point) => ({ ...point })));
     window.clearTimeout(recognitionTimer);
-    recognitionTimer = window.setTimeout(() => void beautifyPendingWord(), 1050);
+    recognitionTimer = window.setTimeout(() => void beautifyPendingWord(), 550);
   }
   currentStroke = [];
 }
@@ -226,7 +226,7 @@ async function beautifyPendingWord(): Promise<void> {
   recognitionBusy = true;
   try {
     const padding = Math.max(24, height * 0.35);
-    const scale = Math.min(3, 480 / Math.max(width + padding * 2, height + padding * 2));
+    const scale = Math.min(2.6, 420 / Math.max(width + padding * 2, height + padding * 2));
     const sample = document.createElement('canvas');
     sample.width = Math.ceil((width + padding * 2) * scale);
     sample.height = Math.ceil((height + padding * 2) * scale);
@@ -440,7 +440,7 @@ function updateHand(result: HandLandmarkerResult): void {
     }
     stroke(lastFinger, smoothFinger, Math.max(12, Math.min(22, calibratedPalmWidth * 0.13)));
     currentStroke.push({ ...smoothFinger });
-    if (now - lastLiveRecognitionAt > 850 && currentStroke.length >= 10) {
+      if (now - lastLiveRecognitionAt > 500 && currentStroke.length >= 10) {
       lastLiveRecognitionAt = now;
       void analyzeWritingLive();
     }
@@ -624,3 +624,6 @@ beautifyButton.addEventListener('click', () => {
 
 resize();
 render();
+// Preload the local recognizer while the permission screen is visible so the
+// first beautification can respond immediately after the user starts writing.
+if (beautifyEnabled) void getRecognitionWorker().catch(() => undefined);
