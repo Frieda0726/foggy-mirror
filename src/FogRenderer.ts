@@ -79,9 +79,9 @@ void main() {
 
   vec2 refractedUv = uv;
   vec3 clearVideo = sampleVideo(refractedUv).rgb;
-  vec3 blurredVideo = softVideo(refractedUv, 26.0);
-  vec3 milkGlass = vec3(0.93, 0.945, 0.945);
-  vec3 fogged = mix(blurredVideo, milkGlass, 0.66);
+  vec3 blurredVideo = softVideo(refractedUv, 30.0);
+  vec3 milkGlass = vec3(0.945, 0.952, 0.952);
+  vec3 fogged = mix(blurredVideo, milkGlass, 0.80);
 
   vec2 px = 2.0 / u_resolution;
   float nearMask = max(max(texture(u_mask, uv + vec2(px.x, 0)).r, texture(u_mask, uv - vec2(px.x, 0)).r),
